@@ -1,0 +1,45 @@
+{
+  "name": "coxrostermanagemnet",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CoxRosterManagemnet - Node.js + TypeScript Express API",
+  "main": "dist/server.js",
+  "types": "dist/server.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "cdk": "cdk -a \"npx tsx infra/bin/app.ts\"",
+    "cdk:bootstrap": "npm run cdk -- bootstrap",
+    "cdk:diff": "npm run cdk -- diff",
+    "cdk:deploy": "npm run cdk -- deploy --require-approval never",
+    "cdk:destroy": "npm run cdk -- destroy",
+    "cdk:synth": "npm run cdk -- synth",
+    "create:dynamodb-table": "node scripts/create-dynamodb-table.js",
+    "dev": "tsx watch src/server.ts",
+    "infra:typecheck": "tsc -p infra/tsconfig.json --noEmit",
+    "start": "node dist/server.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.1021.0",
+    "@aws-sdk/lib-dynamodb": "^3.1021.0",
+    "dotenv": "^17.3.1",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "serverless-http": "^3.2.0"
+  },
+  "devDependencies": {
+    "aws-cdk": "^2.1016.0",
+    "aws-cdk-lib": "^2.220.0",
+    "@types/express": "^5.0.1",
+    "@types/jsonwebtoken": "^9.0.8",
+    "@types/node": "^22.15.0",
+    "@types/supertest": "^6.0.3",
+    "constructs": "^10.4.2",
+    "esbuild": "^0.25.4",
+    "supertest": "^7.1.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.8.3",
+    "vitest": "^3.1.1"
+  }
+}

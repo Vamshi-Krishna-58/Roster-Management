@@ -1,0 +1,8 @@
+{
+  "app": "npx tsx infra/bin/app.ts",
+  "context": {
+    "@aws-cdk/aws-apigateway:requestValidatorUniqueId": true,
+    "@aws-cdk/aws-lambda:recognizeVersionProps": true,
+    "@aws-cdk/core:validateSnapshotRemovalPolicy": true
+  }
+}

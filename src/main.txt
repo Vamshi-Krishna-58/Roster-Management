@@ -1,0 +1,1 @@
+This project now uses `src/index.ts` as the main TypeScript entry point.

@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="760" viewBox="0 0 640 760" role="img" aria-labelledby="title2 desc2">
+  <title id="title2">AI style employee portrait 2</title>
+  <desc id="desc2">Stylized portrait with warm gradient palette.</desc>
+  <defs>
+    <linearGradient id="bg2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#e87722"/>
+      <stop offset="100%" stop-color="#f4a261"/>
+    </linearGradient>
+    <radialGradient id="face2" cx="50%" cy="35%" r="58%">
+      <stop offset="0%" stop-color="#f3d0af"/>
+      <stop offset="100%" stop-color="#e4b48b"/>
+    </radialGradient>
+  </defs>
+  <rect width="640" height="760" rx="42" fill="url(#bg2)"/>
+  <circle cx="520" cy="120" r="88" fill="#ffffff" opacity="0.15"/>
+  <circle cx="130" cy="240" r="130" fill="#ffffff" opacity="0.1"/>
+  <ellipse cx="320" cy="660" rx="220" ry="130" fill="#7a3b10"/>
+  <ellipse cx="320" cy="320" rx="160" ry="186" fill="url(#face2)"/>
+  <path d="M196 286c7-94 73-154 123-154s132 52 137 164c2 29-5 57-18 78-34-29-80-43-122-43-40 0-77 8-122 31-14-21-19-45-18-76z" fill="#3a1f08"/>
+  <ellipse cx="264" cy="332" rx="12" ry="8" fill="#2a1a15"/>
+  <ellipse cx="374" cy="332" rx="12" ry="8" fill="#2a1a15"/>
+  <path d="M272 402c20 18 75 18 96 0" stroke="#9b5644" stroke-width="8" fill="none" stroke-linecap="round"/>
+  <rect x="198" y="492" width="244" height="170" rx="22" fill="#faf5ef"/>
+  <rect x="228" y="526" width="184" height="18" rx="9" fill="#d06a1e"/>
+  <rect x="228" y="558" width="132" height="16" rx="8" fill="#f4a261"/>
+</svg>

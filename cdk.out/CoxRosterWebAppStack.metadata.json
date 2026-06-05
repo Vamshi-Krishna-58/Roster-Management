@@ -1,0 +1,288 @@
+{
+  "/CoxRosterWebAppStack/Custom::S3AutoDeleteObjectsCustomResourceProvider": [
+    {
+      "type": "aws:cdk:is-custom-resource-handler-customResourceProvider",
+      "data": true
+    }
+  ],
+  "/CoxRosterWebAppStack/WebAcl": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "WebAcl"
+    }
+  ],
+  "/CoxRosterWebAppStack/Custom::CDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C": [
+    {
+      "type": "aws:cdk:is-custom-resource-handler-singleton",
+      "data": true
+    },
+    {
+      "type": "aws:cdk:is-custom-resource-handler-runtime-family",
+      "data": 2
+    }
+  ],
+  "/CoxRosterWebAppStack/CloudFrontUrl": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "CloudFrontUrl"
+    }
+  ],
+  "/CoxRosterWebAppStack/ApiInvokeUrl": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ApiInvokeUrl"
+    }
+  ],
+  "/CoxRosterWebAppStack/HealthUrl": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "HealthUrl"
+    }
+  ],
+  "/CoxRosterWebAppStack/FrontendBucketName": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "FrontendBucketName"
+    }
+  ],
+  "/CoxRosterWebAppStack/DynamoTableName": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "DynamoTableName"
+    }
+  ],
+  "/CoxRosterWebAppStack/BootstrapVersion": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "BootstrapVersion"
+    }
+  ],
+  "/CoxRosterWebAppStack/CheckBootstrapVersion": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "CheckBootstrapVersion"
+    }
+  ],
+  "/CoxRosterWebAppStack/FrontendBucket/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "FrontendBucketEFE2E19C"
+    },
+    {
+      "type": "aws:cdk:analytics:mixin",
+      "data": {
+        "mixin": "aws-cdk-lib.aws_s3.mixins.BucketAutoDeleteObjects"
+      }
+    }
+  ],
+  "/CoxRosterWebAppStack/Custom::S3AutoDeleteObjectsCustomResourceProvider/Role": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092"
+    }
+  ],
+  "/CoxRosterWebAppStack/Custom::S3AutoDeleteObjectsCustomResourceProvider/Handler": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "CustomS3AutoDeleteObjectsCustomResourceProviderHandler9D90184F"
+    }
+  ],
+  "/CoxRosterWebAppStack/RosterTable/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "RosterTable82982E3B"
+    }
+  ],
+  "/CoxRosterWebAppStack/ApiFunctionLogs/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ApiFunctionLogs0D7A2434"
+    }
+  ],
+  "/CoxRosterWebAppStack/ApiHandler/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ApiHandler5E7490E8"
+    }
+  ],
+  "/CoxRosterWebAppStack/ApiAccessLogs/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ApiAccessLogsE9DF007D"
+    }
+  ],
+  "/CoxRosterWebAppStack/PublicApi/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "PublicApiC8293BC5"
+    }
+  ],
+  "/CoxRosterWebAppStack/PublicApi/Account": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "PublicApiAccount21462301"
+    }
+  ],
+  "/CoxRosterWebAppStack/PublicApi/Endpoint": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "PublicApiEndpointEA3E4599"
+    }
+  ],
+  "/CoxRosterWebAppStack/SecurityHeadersPolicy/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "SecurityHeadersPolicyE1741D63"
+    }
+  ],
+  "/CoxRosterWebAppStack/WebDistribution/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "WebDistribution59C46482"
+    }
+  ],
+  "/CoxRosterWebAppStack/Custom::CDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C81C01536"
+    }
+  ],
+  "/CoxRosterWebAppStack/CDKMetadata/Default": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "CDKMetadata"
+    }
+  ],
+  "/CoxRosterWebAppStack/FrontendBucket/Policy/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "FrontendBucketPolicy1DFF75D9"
+    },
+    {
+      "type": "aws:cdk:analytics:mixin",
+      "data": {
+        "mixin": "aws-cdk-lib.aws_s3.mixins.BucketPolicyStatements"
+      }
+    }
+  ],
+  "/CoxRosterWebAppStack/FrontendBucket/AutoDeleteObjectsCustomResource/Default": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "FrontendBucketAutoDeleteObjectsCustomResourceDB860B32"
+    }
+  ],
+  "/CoxRosterWebAppStack/ApiHandler/ServiceRole/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ApiHandlerServiceRole592E70E9"
+    }
+  ],
+  "/CoxRosterWebAppStack/PublicApi/CloudWatchRole/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "PublicApiCloudWatchRole8820E422"
+    }
+  ],
+  "/CoxRosterWebAppStack/PublicApi/Deployment/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "PublicApiDeployment375FE7FC738de20c81618737d33c7b6e85d0b2ca"
+    }
+  ],
+  "/CoxRosterWebAppStack/PublicApi/DeploymentStage.dev/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "PublicApiDeploymentStagedev328E8973"
+    }
+  ],
+  "/CoxRosterWebAppStack/DeployFrontend/AwsCliLayer/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "DeployFrontendAwsCliLayerD774ED8F"
+    }
+  ],
+  "/CoxRosterWebAppStack/DeployFrontend/CustomResource/Default": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "DeployFrontendCustomResource3E02C3B7"
+    }
+  ],
+  "/CoxRosterWebAppStack/Custom::CDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C/ServiceRole/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756CServiceRole89A01265"
+    }
+  ],
+  "/CoxRosterWebAppStack/ApiHandler/ServiceRole/DefaultPolicy/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ApiHandlerServiceRoleDefaultPolicy10321D87"
+    }
+  ],
+  "/CoxRosterWebAppStack/PublicApi/Default/OPTIONS/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "PublicApiOPTIONS1B2029CE"
+    }
+  ],
+  "/CoxRosterWebAppStack/PublicApi/Default/ANY/ApiPermission.CoxRosterWebAppStackPublicApi262EAC83.ANY..": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "PublicApiANYApiPermissionCoxRosterWebAppStackPublicApi262EAC83ANYA6214C3E"
+    }
+  ],
+  "/CoxRosterWebAppStack/PublicApi/Default/ANY/ApiPermission.Test.CoxRosterWebAppStackPublicApi262EAC83.ANY..": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "PublicApiANYApiPermissionTestCoxRosterWebAppStackPublicApi262EAC83ANY81DA5401"
+    }
+  ],
+  "/CoxRosterWebAppStack/PublicApi/Default/ANY/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "PublicApiANY583CE773"
+    }
+  ],
+  "/CoxRosterWebAppStack/PublicApi/Default/{proxy+}/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "PublicApiproxyC25F7018"
+    }
+  ],
+  "/CoxRosterWebAppStack/WebDistribution/Origin1/S3OriginAccessControl/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "WebDistributionOrigin1S3OriginAccessControl83AD2F73"
+    }
+  ],
+  "/CoxRosterWebAppStack/Custom::CDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C/ServiceRole/DefaultPolicy/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "CustomCDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756CServiceRoleDefaultPolicy88902FDF"
+    }
+  ],
+  "/CoxRosterWebAppStack/PublicApi/Default/{proxy+}/OPTIONS/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "PublicApiproxyOPTIONS57C856BB"
+    }
+  ],
+  "/CoxRosterWebAppStack/PublicApi/Default/{proxy+}/ANY/ApiPermission.CoxRosterWebAppStackPublicApi262EAC83.ANY..{proxy+}": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "PublicApiproxyANYApiPermissionCoxRosterWebAppStackPublicApi262EAC83ANYproxy3414FA4D"
+    }
+  ],
+  "/CoxRosterWebAppStack/PublicApi/Default/{proxy+}/ANY/ApiPermission.Test.CoxRosterWebAppStackPublicApi262EAC83.ANY..{proxy+}": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "PublicApiproxyANYApiPermissionTestCoxRosterWebAppStackPublicApi262EAC83ANYproxyA4E26C73"
+    }
+  ],
+  "/CoxRosterWebAppStack/PublicApi/Default/{proxy+}/ANY/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "PublicApiproxyANY4B26FF84"
+    }
+  ]
+}

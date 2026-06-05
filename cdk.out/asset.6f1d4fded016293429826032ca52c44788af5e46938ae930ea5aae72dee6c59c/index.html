@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Cox Roster Management — Portal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;}
+    :root{
+      --color-background-primary:#ffffff;
+      --color-background-secondary:#fafaf7;
+      --color-background-tertiary:#f5f5f0;
+      --color-border-secondary:#e5e5de;
+      --color-border-tertiary:#f0f0eb;
+      --color-text-primary:#1a1a2e;
+      --color-text-secondary:#6b7280;
+      --color-text-tertiary:#9ca3af;
+      --font-sans:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      --font-mono:"Consolas","SF Mono","Cascadia Code",monospace;
+    }
+    body{margin:0;font-family:var(--font-sans);background:var(--color-background-tertiary);-webkit-font-smoothing:antialiased;}
+    #root{min-height:100vh;}
+    select option{background:var(--color-background-primary);color:var(--color-text-primary);}
+  </style>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const{useState,useMemo}=React;
+
+const ENGAGEMENT_STATES=["Hard Lock Active","Hard Lock Released","Roll On In Progress","Rolled On","Rolling Off","Rolled Off"];
+const LOCATIONS=["New York","Chicago","Atlanta","Dallas","Remote","Offshore"];
+const DEPARTMENTS=["Engineering","QA","Design","PMO","Architecture","DevOps"];
+const ROLES_LIST=["Developer","Senior Developer","Lead","Manager","Architect","QA Engineer","Scrum Master"];
+const RELEASE_TRAINS=["ART-1","ART-2","ART-3","ART-4"];
+const APP_ROLES=["User","Project Lead","PMO","Admin"];
+const LOCK_DATE="2024-06-30";
+const ENGAGEMENT_START="2023-01-01";
+
+const STATUS_COLORS={
+  "Hard Lock Active":{bg:"#FFF3CD",text:"#856404",border:"#FFECB5"},
+  "Hard Lock Released":{bg:"#E2E3E5",text:"#41464B",border:"#D3D6D8"},
+  "Roll On In Progress":{bg:"#CCE5FF",text:"#004085",border:"#B8D4FF"},
+  "Rolled On":{bg:"#D4EDDA",text:"#155724",border:"#C3E6CB"},
+  "Rolling Off":{bg:"#FFE5CC",text:"#804000",border:"#FFD4A8"},
+  "Rolled Off":{bg:"#F8D7DA",text:"#721C24",border:"#F5C6CB"},
+};
+const VALID_TRANSITIONS={
+  "Hard Lock Active":["Hard Lock Released"],
+  "Hard Lock Released":["Roll On In Progress"],
+  "Roll On In Progress":["Rolled On"],
+  "Rolled On":["Rolling Off"],
+  "Rolling Off":["Rolled Off"],
+  "Rolled Off":[],
+};
+
+const SEED_EMPLOYEES=[
+  {id:1,firstName:"Ravi",lastName:"Kumar",entId:"ENT-2001",location:"New York",department:"PMO",role:"Program Manager",releaseTrain:"ART-1",billingStatus:"Non-Billable",startDate:"2026-01-01",endDate:"",status:"Rolled On",appRole:"Admin",notes:""},
+  {id:2,firstName:"Lisa",lastName:"Chen",entId:"ENT-2002",location:"Chicago",department:"Engineering",role:"Tech Lead",releaseTrain:"ART-2",billingStatus:"Billable",startDate:"2026-01-15",endDate:"2026-12-31",status:"Rolled On",appRole:"Project Lead",notes:""},
+  {id:3,firstName:"Omar",lastName:"Hassan",entId:"ENT-2003",location:"Remote",department:"Architecture",role:"Solution Architect",releaseTrain:"ART-1",billingStatus:"Billable",startDate:"2026-02-01",endDate:"",status:"Rolled On",appRole:"PMO",notes:""},
+  {id:4,firstName:"Sophia",lastName:"Martinez",entId:"ENT-2004",location:"Dallas",department:"QA",role:"QA Lead",releaseTrain:"ART-3",billingStatus:"Billable",startDate:"2026-03-01",endDate:"2026-12-31",status:"Rolled On",appRole:"User",notes:""},
+  {id:5,firstName:"Derek",lastName:"Williams",entId:"ENT-2005",location:"Atlanta",department:"Engineering",role:"Developer",releaseTrain:"ART-2",billingStatus:"Billable",startDate:"2026-02-15",endDate:"2026-12-31",status:"Rolled On",appRole:"User",notes:""},
+];
+const SEED_PROJECTS=[];
+const SEED_ASSIGNMENTS=[];
+const FIXED_LINES=["PTO","Training","Community","Unplanned Leave"];
+
+function getMondayOf(date){const d=new Date(date);const day=d.getDay();d.setDate(d.getDate()+(day===0?-6:1-day));return d.toISOString().slice(0,10);}
+function getWeekDays(monday){return Array.from({length:5},(_,i)=>{const d=new Date(monday);d.setDate(d.getDate()+i);return d.toISOString().slice(0,10);});}
+function fmtDate(d){if(!d)return"\u2014";return new Date(d+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});}
+function initials(f,l){return(f[0]+l[0]).toUpperCase();}
+
+function rolePerms(appRole){
+  return{
+    canManageProjects:["Project Lead","PMO","Admin"].includes(appRole),
+    canManageAssign:["Project Lead","PMO","Admin"].includes(appRole),
+    canManageEngagement:["PMO","Admin"].includes(appRole),
+    canEditOthersTime:["PMO","Admin"].includes(appRole),
+    canEditLockedTime:appRole==="Admin",
+    canManageRoles:appRole==="Admin",
+    canDeleteEmployee:appRole==="Admin",
+    canViewReports:["Project Lead","PMO","Admin"].includes(appRole),
+  };
+}
+
+const SS={padding:"8px 10px",borderRadius:"8px",border:"0.5px solid var(--color-border-secondary)",background:"var(--color-background-primary)",fontSize:"13px",color:"var(--color-text-primary)"};
+const SB={padding:"5px 10px",borderRadius:"6px",border:"0.5px solid var(--color-border-secondary)",background:"transparent",cursor:"pointer",fontSize:"12px",color:"var(--color-text-secondary)"};
+const INP={width:"100%",padding:"8px 10px",borderRadius:"8px",border:"0.5px solid var(--color-border-secondary)",background:"var(--color-background-primary)",fontSize:"13px",color:"var(--color-text-primary)",boxSizing:"border-box"};
+
+function Badge({label,bg,color,border}){
+  return <span style={{padding:"3px 10px",borderRadius:"20px",fontSize:"11px",fontWeight:"500",background:bg,color,border:"1px solid "+(border||bg),whiteSpace:"nowrap"}}>{label}</span>;
+}
+function ErrBox({errors}){
+  if(!errors||!errors.length)return null;
+  return <div style={{background:"#F8D7DA",border:"1px solid #F5C6CB",borderRadius:"8px",padding:"12px 16px",marginBottom:"1.25rem"}}>{errors.map((e,i)=><p key={i} style={{margin:"2px 0",fontSize:"13px",color:"#721C24"}}>{"\u2022 "+e}</p>)}</div>;
+}
+function Card({children,style}){
+  return <div style={{background:"var(--color-background-primary)",border:"0.5px solid var(--color-border-tertiary)",borderRadius:"12px",padding:"1.25rem",...(style||{})}}>{children}</div>;
+}
+function FF({label,children,span}){
+  return <div style={span?{gridColumn:"1 / -1"}:{}}>
+    <label style={{display:"block",fontSize:"12px",color:"var(--color-text-secondary)",marginBottom:"5px"}}>{label}</label>
+    {children}
+  </div>;
+}
+function Shell({title,onClose,wide,children}){
+  return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:998,padding:"1rem"}}>
+    <div style={{background:"var(--color-background-primary)",borderRadius:"12px",padding:"1.5rem",width:wide?"720px":"420px",maxWidth:"100%",maxHeight:"90vh",overflowY:"auto",border:"0.5px solid var(--color-border-tertiary)"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"1.25rem"}}>
+        <p style={{margin:0,fontWeight:"500",fontSize:"15px",color:"var(--color-text-primary)"}}>{title}</p>
+        <button onClick={onClose} style={{background:"transparent",border:"none",cursor:"pointer",color:"var(--color-text-secondary)",fontSize:"20px",lineHeight:1}}>{"\u00d7"}</button>
+      </div>
+      {children}
+    </div>
+  </div>;
+}
+function useForm(init){
+  const[form,setForm]=useState({...init});
+  const[errors,setErrors]=useState([]);
+  const field=k=>({value:form[k]!=null?form[k]:"",onChange:e=>setForm(p=>({...p,[k]:e.target.value}))});
+  const check=k=>({checked:!!form[k],onChange:e=>setForm(p=>({...p,[k]:e.target.checked}))});
+  return{form,setForm,errors,setErrors,field,check};
+}
+
+function ConfirmModal({msg,onConfirm,onCancel}){
+  return <Shell title="Confirm action" onClose={onCancel}>
+    <p style={{fontSize:"14px",color:"var(--color-text-secondary)",marginBottom:"1.5rem"}}>{msg}</p>
+    <div style={{display:"flex",gap:"8px",justifyContent:"flex-end"}}>
+      <button onClick={onCancel} style={{...SS,cursor:"pointer"}}>Cancel</button>
+      <button onClick={onConfirm} style={{padding:"8px 18px",borderRadius:"8px",background:"#A32D2D",color:"white",border:"none",cursor:"pointer",fontSize:"13px",fontWeight:"500"}}>Confirm</button>
+    </div>
+  </Shell>;
+}
+
+function StatusModal({emp,onApply,onCancel}){
+  const next=VALID_TRANSITIONS[emp.status]||[];
+  return <Shell title="Update engagement status" onClose={onCancel}>
+    <p style={{fontSize:"13px",color:"var(--color-text-secondary)",marginBottom:"1rem"}}>{emp.firstName} {emp.lastName} {"\u00b7"} Current: <strong>{emp.status}</strong></p>
+    {next.length===0?<p style={{fontSize:"13px",color:"var(--color-text-secondary)"}}>No further transitions available.</p>:
+      <div style={{display:"flex",flexDirection:"column",gap:"8px",marginBottom:"1rem"}}>
+        {next.map(s=>{const sc=STATUS_COLORS[s];return <button key={s} onClick={()=>onApply(emp,s)} style={{padding:"10px 14px",borderRadius:"8px",border:"1px solid "+sc.border,background:sc.bg,color:sc.text,cursor:"pointer",fontSize:"13px",fontWeight:"500",textAlign:"left"}}>{"\u2192 "+s}</button>;})}
+      </div>}
+    <button onClick={onCancel} style={{...SS,cursor:"pointer"}}>Cancel</button>
+  </Shell>;
+}
+
+function EmpModal({editing,onSave,onClose}){
+  const init=editing||{firstName:"",lastName:"",entId:"",location:LOCATIONS[0],department:DEPARTMENTS[0],role:ROLES_LIST[0],releaseTrain:RELEASE_TRAINS[0],billingStatus:"Billable",startDate:"",endDate:"",status:"Roll On In Progress",appRole:"User",notes:""};
+  const{form,errors,setErrors,field}=useForm(init);
+  function submit(){const e=onSave(form,editing?editing.id:undefined);if(e.length)setErrors(e);else onClose();}
+  return <Shell title={editing?"Edit Employee":"Add Employee"} onClose={onClose} wide>
+    <ErrBox errors={errors}/>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"14px",marginBottom:"1.25rem"}}>
+      <FF label="First Name *"><input type="text" {...field("firstName")} style={INP}/></FF>
+      <FF label="Last Name *"><input type="text" {...field("lastName")} style={INP}/></FF>
+      <FF label="Enterprise ID *"><input type="text" {...field("entId")} style={INP}/></FF>
+      <FF label="App Role"><select {...field("appRole")} style={INP}>{APP_ROLES.map(o=><option key={o}>{o}</option>)}</select></FF>
+      <FF label="Location"><select {...field("location")} style={INP}>{LOCATIONS.map(o=><option key={o}>{o}</option>)}</select></FF>
+      <FF label="Department"><select {...field("department")} style={INP}>{DEPARTMENTS.map(o=><option key={o}>{o}</option>)}</select></FF>
+      <FF label="Role"><select {...field("role")} style={INP}>{ROLES_LIST.map(o=><option key={o}>{o}</option>)}</select></FF>
+      <FF label="Release Train"><select {...field("releaseTrain")} style={INP}>{RELEASE_TRAINS.map(o=><option key={o}>{o}</option>)}</select></FF>
+      <FF label="Billing Status"><select {...field("billingStatus")} style={INP}><option>Billable</option><option>Non-Billable</option></select></FF>
+      <FF label="Engagement Status"><select {...field("status")} style={INP}>{ENGAGEMENT_STATES.map(o=><option key={o}>{o}</option>)}</select></FF>
+      <FF label="Start Date *"><input type="date" {...field("startDate")} style={INP}/></FF>
+      <FF label="End Date"><input type="date" {...field("endDate")} style={INP}/></FF>
+      <FF label="Notes" span><textarea {...field("notes")} rows={2} style={{...INP,resize:"vertical"}}/></FF>
+    </div>
+    <div style={{display:"flex",gap:"10px",justifyContent:"flex-end"}}>
+      <button onClick={onClose} style={{...SS,cursor:"pointer"}}>Cancel</button>
+      <button onClick={submit} style={{padding:"9px 24px",borderRadius:"8px",background:"#0A2240",color:"white",border:"none",cursor:"pointer",fontSize:"13px",fontWeight:"500"}}>{editing?"Save Changes":"Add Employee"}</button>
+    </div>
+  </Shell>;
+}
+
+function ProjModal({editing,onSave,onClose,employees}){
+  const init=editing||{name:"",deliveryLead:"",startDate:"",endDate:"",isInvestment:false,status:"Active",description:""};
+  const{form,errors,setErrors,field,check}=useForm(init);
+  function submit(){const e=onSave(form,editing?editing.id:undefined);if(e.length)setErrors(e);else onClose();}
+  return <Shell title={editing?"Edit Project":"New Project"} onClose={onClose} wide>
+    <ErrBox errors={errors}/>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"14px",marginBottom:"1.25rem"}}>
+      <FF label="Project Name *" span><input type="text" {...field("name")} style={INP}/></FF>
+      <FF label="Delivery Lead *"><select {...field("deliveryLead")} style={INP}><option value="">{"\u2014 Select \u2014"}</option>{employees.map(e=><option key={e.id} value={e.entId}>{e.firstName} {e.lastName}</option>)}</select></FF>
+      <FF label="Status"><select {...field("status")} style={INP}><option>Active</option><option>On Hold</option><option>Completed</option></select></FF>
+      <FF label="Start Date *"><input type="date" {...field("startDate")} style={INP}/></FF>
+      <FF label="End Date *"><input type="date" {...field("endDate")} style={INP}/></FF>
+      <FF label="Description" span><textarea {...field("description")} rows={2} style={{...INP,resize:"vertical"}}/></FF>
+      <FF label="" span><label style={{display:"flex",alignItems:"center",gap:"8px",cursor:"pointer",fontSize:"13px",color:"var(--color-text-primary)"}}><input type="checkbox" {...check("isInvestment")}/> Mark as Investment project</label></FF>
+    </div>
+    <div style={{display:"flex",gap:"10px",justifyContent:"flex-end"}}>
+      <button onClick={onClose} style={{...SS,cursor:"pointer"}}>Cancel</button>
+      <button onClick={submit} style={{padding:"9px 24px",borderRadius:"8px",background:"#0A2240",color:"white",border:"none",cursor:"pointer",fontSize:"13px",fontWeight:"500"}}>{editing?"Save Changes":"Create Project"}</button>
+    </div>
+  </Shell>;
+}
+
+function AssignModal({editing,onSave,onClose,employees,projects}){
+  const init=editing?{...editing,employeeId:String(editing.employeeId),projectId:String(editing.projectId),billable:String(editing.billable)}:{employeeId:"",projectId:"",role:"",allocation:"100",startDate:"",endDate:"",billable:"true"};
+  const{form,errors,setErrors,field}=useForm(init);
+  function submit(){const e=onSave(form,editing?editing.id:undefined);if(e.length)setErrors(e);else onClose();}
+  return <Shell title={editing?"Edit Assignment":"New Assignment"} onClose={onClose} wide>
+    <ErrBox errors={errors}/>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"14px",marginBottom:"1.25rem"}}>
+      <FF label="Employee *"><select {...field("employeeId")} style={INP}><option value="">{"\u2014 Select \u2014"}</option>{employees.filter(e=>e.status!=="Rolled Off").map(e=><option key={e.id} value={String(e.id)}>{e.firstName} {e.lastName} ({e.entId})</option>)}</select></FF>
+      <FF label="Project *"><select {...field("projectId")} style={INP}><option value="">{"\u2014 Select \u2014"}</option>{projects.map(p=><option key={p.id} value={String(p.id)}>{p.name}</option>)}</select></FF>
+      <FF label="Role on Project"><input type="text" {...field("role")} style={INP} placeholder="e.g. Senior Developer"/></FF>
+      <FF label="Allocation % (1\u2013100)"><input type="number" min="1" max="100" {...field("allocation")} style={INP}/></FF>
+      <FF label="Start Date *"><input type="date" {...field("startDate")} style={INP}/></FF>
+      <FF label="End Date *"><input type="date" {...field("endDate")} style={INP}/></FF>
+      <FF label="Billing"><select {...field("billable")} style={INP}><option value="true">Billable</option><option value="false">Non-Billable</option></select></FF>
+    </div>
+    <div style={{display:"flex",gap:"10px",justifyContent:"flex-end"}}>
+      <button onClick={onClose} style={{...SS,cursor:"pointer"}}>Cancel</button>
+      <button onClick={submit} style={{padding:"9px 24px",borderRadius:"8px",background:"#0A2240",color:"white",border:"none",cursor:"pointer",fontSize:"13px",fontWeight:"500"}}>{editing?"Save Changes":"Create Assignment"}</button>
+    </div>
+  </Shell>;
+}
+
+function App(){
+  const[currentUser,setCurrentUser]=useState({id:0,firstName:"System",lastName:"Admin",entId:"ENT-0000",location:"",department:"",role:"Admin",releaseTrain:"",billingStatus:"",startDate:"",endDate:"",status:"Rolled On",appRole:"Admin",notes:""});
+  const[employees,setEmployees]=useState(SEED_EMPLOYEES);
+  const[projects,setProjects]=useState(SEED_PROJECTS);
+  const[assignments,setAssignments]=useState(SEED_ASSIGNMENTS);
+  const[timesheets,setTimesheets]=useState({});
+  const[history,setHistory]=useState([]);
+  const[view,setView]=useState("roster");
+  const[subView,setSubView]=useState(null);
+  const[selected,setSelected]=useState(null);
+  const[toast,setToast]=useState(null);
+  const[modal,setModal]=useState(null);
+  const[search,setSearch]=useState("");
+  const[fStatus,setFStatus]=useState("All");
+  const[fBilling,setFBilling]=useState("All");
+  const[fDept,setFDept]=useState("All");
+  const[sortBy,setSortBy]=useState("lastName");
+  const[rptTab,setRptTab]=useState("allocation");
+  const[tsEmpId,setTsEmpId]=useState(null);
+  const[tsWeek,setTsWeek]=useState(getMondayOf(new Date().toISOString().slice(0,10)));
+
+  const perms=rolePerms(currentUser.appRole);
+  const tsEmp=employees.find(e=>e.id===(tsEmpId!=null?tsEmpId:currentUser.id))||currentUser;
+
+  function toast_(msg,type){setToast({msg,type:type||"success"});setTimeout(()=>setToast(null),3500);}
+  function addHist(empId,entId,name,changes){if(!changes.length)return;setHistory(h=>[{empId,entId,name,timestamp:new Date().toISOString(),changes},...h]);}
+
+  const filtered=useMemo(()=>employees.filter(e=>{
+    const q=search.toLowerCase();
+    const ms=!q||(e.firstName+" "+e.lastName+" "+e.entId+" "+e.department+" "+e.role).toLowerCase().includes(q);
+    return ms&&(fStatus==="All"||e.status===fStatus)&&(fBilling==="All"||e.billingStatus===fBilling)&&(fDept==="All"||e.department===fDept);
+  }).sort((a,b)=>{
+    if(sortBy==="lastName")return a.lastName.localeCompare(b.lastName);
+    if(sortBy==="status")return a.status.localeCompare(b.status);
+    if(sortBy==="dept")return a.department.localeCompare(b.department);
+    if(sortBy==="start")return a.startDate.localeCompare(b.startDate);
+    return 0;
+  }),[employees,search,fStatus,fBilling,fDept,sortBy]);
+
+  function saveEmp(form,editingId){
+    const t={...form,firstName:form.firstName.trim(),lastName:form.lastName.trim(),entId:form.entId.trim()};
+    const errs=[];
+    if(!t.firstName)errs.push("First name is required.");
+    if(!t.lastName)errs.push("Last name is required.");
+    if(!t.entId)errs.push("Enterprise ID is required.");
+    if(!t.startDate)errs.push("Start date is required.");
+    if(t.startDate<ENGAGEMENT_START)errs.push("Start date cannot be before engagement start ("+ENGAGEMENT_START+").");
+    if(t.endDate&&t.endDate<t.startDate)errs.push("End date cannot precede start date.");
+    if(employees.find(e=>e.entId===t.entId&&e.id!==editingId))errs.push('Enterprise ID "'+t.entId+'" already exists.');
+    if(errs.length)return errs;
+    if(editingId){
+      const orig=employees.find(e=>e.id===editingId);
+      const changes=Object.keys(t).filter(k=>t[k]!==orig[k]).map(k=>({field:k,from:orig[k],to:t[k]}));
+      addHist(editingId,orig.entId,orig.firstName+" "+orig.lastName,changes);
+      setEmployees(es=>es.map(e=>e.id===editingId?{...e,...t}:e));
+      toast_("Employee updated.");
+    }else{
+      const ne={...t,id:Date.now()};
+      setEmployees(es=>[...es,ne]);
+      toast_("Employee added.");
+    }
+    return[];
+  }
+
+  function applyTransition(emp,newStatus){
+    addHist(emp.id,emp.entId,emp.firstName+" "+emp.lastName,[{field:"status",from:emp.status,to:newStatus}]);
+    setEmployees(es=>es.map(e=>e.id===emp.id?{...e,status:newStatus}:e));
+    setModal(null);
+    toast_('Status \u2192 "'+newStatus+'".');
+  }
+
+  function saveProj(form,editingId){
+    const errs=[];
+    if(!form.name||!form.name.trim())errs.push("Project name is required.");
+    if(!form.deliveryLead)errs.push("Delivery lead is required.");
+    if(!form.startDate)errs.push("Start date is required.");
+    if(!form.endDate)errs.push("End date is required.");
+    if(form.endDate&&form.startDate&&form.endDate<form.startDate)errs.push("End date cannot precede start date.");
+    if(errs.length)return errs;
+    if(editingId){setProjects(ps=>ps.map(p=>p.id===editingId?{...p,...form,name:form.name.trim()}:p));toast_("Project updated.");}
+    else{setProjects(ps=>[...ps,{...form,id:Date.now(),name:form.name.trim()}]);toast_("Project created.");}
+    return[];
+  }
+
+  function delProj(id){setProjects(ps=>ps.filter(p=>p.id!==id));setAssignments(as=>as.filter(a=>a.projectId!==id));toast_("Project deleted.","info");}
+
+  function saveAssign(form,editingId){
+    const errs=[];
+    if(!form.employeeId)errs.push("Employee is required.");
+    if(!form.projectId)errs.push("Project is required.");
+    if(!form.startDate)errs.push("Start date is required.");
+    if(!form.endDate)errs.push("End date is required.");
+    if(form.endDate&&form.startDate&&form.endDate<form.startDate)errs.push("End date cannot precede start date.");
+    const alloc=parseInt(form.allocation);
+    if(isNaN(alloc)||alloc<1||alloc>100)errs.push("Allocation must be 1\u2013100.");
+    const empId=parseInt(form.employeeId);
+    const overlapping=assignments.filter(a=>a.employeeId===empId&&a.id!==editingId&&a.startDate<=form.endDate&&a.endDate>=form.startDate);
+    const total=overlapping.reduce((s,a)=>s+a.allocation,0)+alloc;
+    if(total>100)errs.push("Total allocation ("+total+"%) exceeds 100% for the given period.");
+    const emp=employees.find(e=>e.id===empId);
+    if(emp&&emp.status==="Rolled Off")errs.push("Cannot assign a rolled-off employee.");
+    if(errs.length)return errs;
+    const saved={...form,id:editingId||Date.now(),employeeId:empId,projectId:parseInt(form.projectId),allocation:alloc,billable:form.billable==="true"||form.billable===true};
+    if(editingId){setAssignments(as=>as.map(a=>a.id===editingId?saved:a));toast_("Assignment updated.");}
+    else{setAssignments(as=>[...as,saved]);toast_("Assignment created.");}
+    return[];
+  }
+
+  function delAssign(id){setAssignments(as=>as.filter(a=>a.id!==id));toast_("Assignment removed.","info");}
+
+  function delEmp(id){setAssignments(as=>as.filter(a=>a.employeeId!==id));setEmployees(es=>es.filter(e=>e.id!==id));if(selected&&selected.id===id)setSubView(null);toast_("Employee deleted.","info");}
+
+  function getTsKey(empId,monday){return empId+"_"+monday;}
+  function getTS(empId,monday){
+    const key=getTsKey(empId,monday);
+    if(timesheets[key])return timesheets[key];
+    const empAssigns=assignments.filter(a=>a.employeeId===empId);
+    const projLines=empAssigns.map(a=>{const proj=projects.find(p=>p.id===a.projectId);return{type:"project",assignmentId:a.id,label:proj?proj.name:"Unknown Project",hours:{Mon:0,Tue:0,Wed:0,Thu:0,Fri:0}};});
+    const fixedLines=FIXED_LINES.map(l=>({type:"fixed",label:l,hours:{Mon:0,Tue:0,Wed:0,Thu:0,Fri:0}}));
+    return{lines:[...projLines,...fixedLines],submitted:false};
+  }
+  function saveTS(empId,monday,ts){setTimesheets(t=>({...t,[getTsKey(empId,monday)]:ts}));}
+  function canEditTs(empId,monday,dayIdx){
+    const date=getWeekDays(monday)[dayIdx];
+    const isOwn=empId===currentUser.id;
+    if(currentUser.appRole==="Admin")return true;
+    if(date<=LOCK_DATE)return false;
+    if(currentUser.appRole==="PMO")return true;
+    return isOwn;
+  }
+
+  const stats={total:employees.length,billable:employees.filter(e=>e.billingStatus==="Billable").length,active:employees.filter(e=>["Roll On In Progress","Rolled On"].includes(e.status)).length,locked:employees.filter(e=>e.status==="Hard Lock Active").length};
+  const days=["Mon","Tue","Wed","Thu","Fri"];
+
+  const navItems=[
+    {id:"roster",label:"Roster"},
+    {id:"projects",label:"Projects"},
+    {id:"assignments",label:"Assignments"},
+    {id:"timesheets",label:"Timesheets"},
+    {id:"reports",label:"Reports",hide:!perms.canViewReports},
+    {id:"history",label:"History"},
+    {id:"access",label:"Access",hide:!perms.canManageRoles},
+  ];
+
+  function nav(v){setView(v);setSubView(null);setSelected(null);}
+
+  return(
+    <div style={{minHeight:"100vh",background:"var(--color-background-tertiary)",fontFamily:"var(--font-sans)"}}>
+      {/* NAV */}
+      <div style={{background:"#0A2240",padding:"0 1.5rem",display:"flex",alignItems:"center",justifyContent:"space-between",height:"52px",position:"sticky",top:0,zIndex:100}}>
+        <div style={{display:"flex",alignItems:"center",gap:"8px"}}>
+          <div style={{width:"26px",height:"26px",background:"#E87722",borderRadius:"5px",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="5" height="5" rx="1" fill="white"/><rect x="8" y="1" width="5" height="5" rx="1" fill="white" opacity="0.7"/><rect x="1" y="8" width="5" height="5" rx="1" fill="white" opacity="0.7"/><rect x="8" y="8" width="5" height="5" rx="1" fill="white"/></svg>
+          </div>
+          <a href="/" style={{color:"white",fontWeight:"500",fontSize:"14px",marginRight:"8px",whiteSpace:"nowrap",textDecoration:"none"}}>Cox Roster</a>
+          {navItems.filter(n=>!n.hide).map(n=>(
+            <button key={n.id} onClick={()=>nav(n.id)} style={{background:view===n.id?"rgba(255,255,255,0.15)":"transparent",color:view===n.id?"white":"rgba(255,255,255,0.7)",border:"none",padding:"5px 11px",borderRadius:"6px",cursor:"pointer",fontSize:"13px",fontWeight:view===n.id?"500":"400",whiteSpace:"nowrap"}}>{n.label}</button>
+          ))}
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:"8px",flexShrink:0}}>
+          <span style={{color:"rgba(255,255,255,0.4)",fontSize:"11px"}}>Viewing as:</span>
+          <select value={currentUser.id} onChange={e=>setCurrentUser(employees.find(emp=>emp.id===parseInt(e.target.value)))} style={{background:"rgba(255,255,255,0.1)",color:"white",border:"0.5px solid rgba(255,255,255,0.2)",borderRadius:"6px",padding:"3px 7px",fontSize:"12px",cursor:"pointer"}}>
+            {employees.map(e=><option key={e.id} value={e.id} style={{background:"#0A2240"}}>{e.firstName} {e.lastName} ({e.appRole})</option>)}
+          </select>
+          <div style={{width:"28px",height:"28px",borderRadius:"50%",background:"#E87722",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"10px",fontWeight:"500",color:"white",flexShrink:0}}>{initials(currentUser.firstName,currentUser.lastName)}</div>
+        </div>
+      </div>
+
+      {/* TOAST */}
+      {toast&&<div style={{position:"fixed",top:"64px",right:"20px",background:toast.type==="error"?"#721C24":toast.type==="info"?"#0C447C":"#155724",color:"white",padding:"10px 16px",borderRadius:"8px",fontSize:"13px",zIndex:999,boxShadow:"0 2px 10px rgba(0,0,0,0.2)"}}>{toast.msg}</div>}
+
+      {/* MODALS */}
+      {modal&&modal.type==="confirm"&&<ConfirmModal msg={modal.data.msg} onConfirm={()=>{modal.data.onConfirm();setModal(null);}} onCancel={()=>setModal(null)}/>}
+      {modal&&modal.type==="status"&&<StatusModal emp={modal.data} onApply={applyTransition} onCancel={()=>setModal(null)}/>}
+      {modal&&(modal.type==="addEmp"||modal.type==="editEmp")&&<EmpModal editing={modal.type==="editEmp"?modal.data:null} onSave={saveEmp} onClose={()=>setModal(null)} allEmployees={employees}/>}
+      {modal&&(modal.type==="addProj"||modal.type==="editProj")&&<ProjModal editing={modal.type==="editProj"?modal.data:null} onSave={saveProj} onClose={()=>setModal(null)} employees={employees}/>}
+      {modal&&(modal.type==="addAssign"||modal.type==="editAssign")&&<AssignModal editing={modal.type==="editAssign"?modal.data:null} onSave={saveAssign} onClose={()=>setModal(null)} employees={employees} projects={projects}/>}
+
+      <div style={{maxWidth:"1300px",margin:"0 auto",padding:"1.5rem 1.5rem"}}>
+
+        {/* ROSTER */}
+        {view==="roster"&&!subView&&<div>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"1.25rem"}}>
+            <h2 style={{margin:0,fontSize:"18px",fontWeight:"500",color:"var(--color-text-primary)"}}>Employee Roster</h2>
+            {perms.canManageEngagement&&<button onClick={()=>setModal({type:"addEmp"})} style={{padding:"8px 18px",borderRadius:"8px",background:"#0A2240",color:"white",border:"none",cursor:"pointer",fontSize:"13px",fontWeight:"500"}}>+ Add Employee</button>}
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"12px",marginBottom:"1.5rem"}}>
+            {[{l:"Total Employees",v:stats.total,c:"#0A2240"},{l:"Billable",v:stats.billable,c:"#155724"},{l:"Active on Project",v:stats.active,c:"#004085"},{l:"Hard Locked",v:stats.locked,c:"#856404"}].map(s=>(
+              <div key={s.l} style={{background:"var(--color-background-primary)",border:"0.5px solid var(--color-border-tertiary)",borderRadius:"10px",padding:"1rem 1.25rem"}}>
+                <p style={{fontSize:"12px",color:"var(--color-text-secondary)",margin:"0 0 6px"}}>{s.l}</p>
+                <p style={{fontSize:"28px",fontWeight:"500",margin:0,color:s.c}}>{s.v}</p>
+              </div>
+            ))}
+          </div>
+          <div style={{display:"flex",gap:"8px",marginBottom:"1rem",flexWrap:"wrap"}}>
+            <input placeholder="Search name, ID, dept..." value={search} onChange={e=>setSearch(e.target.value)} style={{flex:"1",minWidth:"160px",padding:"8px 12px",borderRadius:"8px",border:"0.5px solid var(--color-border-secondary)",background:"var(--color-background-primary)",fontSize:"13px",color:"var(--color-text-primary)"}}/>
+            <select value={fStatus} onChange={e=>setFStatus(e.target.value)} style={SS}><option value="All">All Statuses</option>{ENGAGEMENT_STATES.map(s=><option key={s}>{s}</option>)}</select>
+            <select value={fDept} onChange={e=>setFDept(e.target.value)} style={SS}><option value="All">All Depts</option>{DEPARTMENTS.map(d=><option key={d}>{d}</option>)}</select>
+            <select value={fBilling} onChange={e=>setFBilling(e.target.value)} style={SS}><option value="All">All Billing</option><option>Billable</option><option>Non-Billable</option></select>
+            <select value={sortBy} onChange={e=>setSortBy(e.target.value)} style={SS}><option value="lastName">Sort: Name</option><option value="status">Sort: Status</option><option value="dept">Sort: Dept</option><option value="start">Sort: Start</option></select>
+          </div>
+          <Card style={{padding:0,overflow:"hidden"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:"13px"}}>
+              <thead><tr style={{borderBottom:"0.5px solid var(--color-border-tertiary)",background:"var(--color-background-secondary)"}}>
+                {["Employee","Ent ID","Dept / Role","Train","Billing","Dates","Status","Actions"].map(h=><th key={h} style={{padding:"10px 14px",textAlign:"left",fontWeight:"500",color:"var(--color-text-secondary)",fontSize:"12px"}}>{h}</th>)}
+              </tr></thead>
+              <tbody>
+                {filtered.length===0&&<tr><td colSpan={8} style={{padding:"2.5rem",textAlign:"center",color:"var(--color-text-secondary)"}}>No employees match.</td></tr>}
+                {filtered.map((emp,i)=>{const sc=STATUS_COLORS[emp.status]||{};return(
+                  <tr key={emp.id} style={{borderBottom:i<filtered.length-1?"0.5px solid var(--color-border-tertiary)":"none"}} onMouseEnter={e=>e.currentTarget.style.background="var(--color-background-secondary)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                    <td style={{padding:"12px 14px"}}>
+                      <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
+                        <div style={{width:"32px",height:"32px",borderRadius:"50%",background:"#0A2240",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"11px",fontWeight:"500",color:"white",flexShrink:0}}>{initials(emp.firstName,emp.lastName)}</div>
+                        <div><p style={{margin:0,fontWeight:"500",color:"var(--color-text-primary)"}}>{emp.firstName} {emp.lastName}</p><p style={{margin:0,fontSize:"11px",color:"var(--color-text-secondary)"}}>{emp.location}</p></div>
+                      </div>
+                    </td>
+                    <td style={{padding:"12px 14px",color:"var(--color-text-secondary)",fontFamily:"var(--font-mono)",fontSize:"12px"}}>{emp.entId}</td>
+                    <td style={{padding:"12px 14px"}}><p style={{margin:0,color:"var(--color-text-primary)"}}>{emp.department}</p><p style={{margin:0,fontSize:"11px",color:"var(--color-text-secondary)"}}>{emp.role}</p></td>
+                    <td style={{padding:"12px 14px",color:"var(--color-text-secondary)",fontSize:"12px"}}>{emp.releaseTrain}</td>
+                    <td style={{padding:"12px 14px"}}><Badge label={emp.billingStatus} bg={emp.billingStatus==="Billable"?"#D4EDDA":"#E2E3E5"} color={emp.billingStatus==="Billable"?"#155724":"#41464B"}/></td>
+                    <td style={{padding:"12px 14px",fontSize:"12px",color:"var(--color-text-secondary)"}}><div>{emp.startDate||"\u2014"}</div><div>{emp.endDate||"Open"}</div></td>
+                    <td style={{padding:"12px 14px"}}><Badge label={emp.status} bg={sc.bg} color={sc.text} border={sc.border}/></td>
+                    <td style={{padding:"12px 14px"}}>
+                      <div style={{display:"flex",gap:"5px"}}>
+                        <button onClick={()=>{setSelected(emp);setSubView("detail");}} style={SB}>View</button>
+                        {perms.canManageEngagement&&<button onClick={()=>setModal({type:"editEmp",data:emp})} style={SB}>Edit</button>}
+                        {perms.canManageEngagement&&VALID_TRANSITIONS[emp.status]&&VALID_TRANSITIONS[emp.status].length>0&&<button onClick={()=>setModal({type:"status",data:emp})} style={{...SB,color:"#004085",borderColor:"#B8D4FF"}}>Status</button>}
+                        {perms.canDeleteEmployee&&<button onClick={()=>setModal({type:"confirm",data:{msg:'Delete employee "'+emp.firstName+' '+emp.lastName+'"? This will also remove all their assignments.',onConfirm:()=>delEmp(emp.id)}})} style={{...SB,color:"#721C24",borderColor:"#F5C6CB"}}>Delete</button>}
+                      </div>
+                    </td>
+                  </tr>
+                );})}
+              </tbody>
+            </table>
+          </Card>
+          <p style={{fontSize:"12px",color:"var(--color-text-secondary)",marginTop:"8px"}}>{filtered.length} of {employees.length} employees</p>
+        </div>}
+
+        {/* EMP DETAIL */}
+        {view==="roster"&&subView==="detail"&&selected&&(()=>{
+          const emp=employees.find(e=>e.id===selected.id)||selected;
+          const sc=STATUS_COLORS[emp.status]||{};
+          const empAssigns=assignments.filter(a=>a.employeeId===emp.id);
+          const empHist=history.filter(h=>h.empId===emp.id);
+          return<div>
+            <button onClick={()=>setSubView(null)} style={{background:"transparent",border:"none",cursor:"pointer",color:"var(--color-text-secondary)",fontSize:"13px",marginBottom:"1rem",padding:0}}>{"\u2190 Back to Roster"}</button>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 300px",gap:"1.25rem"}}>
+              <div>
+                <Card style={{marginBottom:"1rem"}}>
+                  <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:"1.25rem"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:"14px"}}>
+                      <div style={{width:"50px",height:"50px",borderRadius:"50%",background:"#0A2240",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"16px",fontWeight:"500",color:"white"}}>{initials(emp.firstName,emp.lastName)}</div>
+                      <div>
+                        <h2 style={{margin:"0 0 2px",fontSize:"18px",fontWeight:"500",color:"var(--color-text-primary)"}}>{emp.firstName} {emp.lastName}</h2>
+                        <p style={{margin:"0 0 6px",color:"var(--color-text-secondary)",fontSize:"12px",fontFamily:"var(--font-mono)"}}>{emp.entId}</p>
+                        <Badge label={emp.appRole} bg="#E6F1FB" color="#185FA5" border="#B5D4F4"/>
+                      </div>
+                    </div>
+                    <div style={{display:"flex",gap:"6px"}}>
+                      {perms.canManageEngagement&&VALID_TRANSITIONS[emp.status]&&VALID_TRANSITIONS[emp.status].length>0&&<button onClick={()=>setModal({type:"status",data:emp})} style={{padding:"7px 12px",borderRadius:"8px",border:"1px solid #B8D4FF",background:"#CCE5FF",color:"#004085",cursor:"pointer",fontSize:"12px",fontWeight:"500"}}>Update Status</button>}
+                      {perms.canManageEngagement&&<button onClick={()=>setModal({type:"editEmp",data:emp})} style={{...SB,padding:"7px 12px"}}>Edit</button>}
+                      {perms.canDeleteEmployee&&<button onClick={()=>setModal({type:"confirm",data:{msg:'Delete employee "'+emp.firstName+' '+emp.lastName+'"? This will also remove all their assignments.',onConfirm:()=>delEmp(emp.id)}})} style={{padding:"7px 12px",borderRadius:"8px",border:"1px solid #F5C6CB",background:"#F8D7DA",color:"#721C24",cursor:"pointer",fontSize:"12px",fontWeight:"500"}}>Delete</button>}
+                    </div>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"1px",background:"var(--color-border-tertiary)",borderRadius:"8px",overflow:"hidden"}}>
+                    {[["Location",emp.location],["Department",emp.department],["Role",emp.role],["Release Train",emp.releaseTrain],["Billing",emp.billingStatus],["Status",emp.status],["Start",emp.startDate||"\u2014"],["End",emp.endDate||"Open"]].map(function(pair){return(
+                      <div key={pair[0]} style={{background:"var(--color-background-primary)",padding:"10px 14px"}}>
+                        <p style={{margin:"0 0 2px",fontSize:"11px",color:"var(--color-text-secondary)",textTransform:"uppercase",letterSpacing:"0.05em"}}>{pair[0]}</p>
+                        <p style={{margin:0,fontSize:"13px",fontWeight:"500",color:"var(--color-text-primary)"}}>{pair[1]}</p>
+                      </div>
+                    );})}
+                  </div>
+                </Card>
+                <Card style={{marginBottom:"1rem"}}>
+                  <h3 style={{margin:"0 0 10px",fontSize:"13px",fontWeight:"500",color:"var(--color-text-primary)"}}>Engagement lifecycle</h3>
+                  <div style={{display:"flex",alignItems:"center",gap:"4px",flexWrap:"wrap"}}>
+                    {ENGAGEMENT_STATES.map((s,i)=>{const isCur=s===emp.status;const isPast=ENGAGEMENT_STATES.indexOf(s)<ENGAGEMENT_STATES.indexOf(emp.status);const c=STATUS_COLORS[s];return<div key={s} style={{display:"flex",alignItems:"center",gap:"4px"}}>
+                      <div style={{padding:"3px 9px",borderRadius:"20px",fontSize:"11px",fontWeight:isCur?"500":"400",background:isCur?c.bg:isPast?"var(--color-background-secondary)":"transparent",color:isCur?c.text:isPast?"var(--color-text-secondary)":"var(--color-text-tertiary)",border:isCur?"1px solid "+c.border:"0.5px solid var(--color-border-tertiary)",opacity:(!isCur&&!isPast)?0.35:1}}>{s}</div>
+                      {i<ENGAGEMENT_STATES.length-1&&<span style={{color:"var(--color-text-tertiary)",fontSize:"10px"}}>{"\u2192"}</span>}
+                    </div>;})}
+                  </div>
+                </Card>
+                <Card>
+                  <h3 style={{margin:"0 0 10px",fontSize:"13px",fontWeight:"500",color:"var(--color-text-primary)"}}>Assignments ({empAssigns.length})</h3>
+                  {empAssigns.length===0?<p style={{fontSize:"13px",color:"var(--color-text-secondary)",margin:0}}>No assignments.</p>:empAssigns.map(a=>{const proj=projects.find(p=>p.id===a.projectId);return<div key={a.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 0",borderBottom:"0.5px solid var(--color-border-tertiary)"}}>
+                    <div><p style={{margin:0,fontWeight:"500",fontSize:"13px",color:"var(--color-text-primary)"}}>{proj?proj.name:"\u2014"}</p><p style={{margin:0,fontSize:"11px",color:"var(--color-text-secondary)"}}>{a.startDate} {"\u2192"} {a.endDate}</p></div>
+                    <div style={{display:"flex",gap:"6px"}}><Badge label={a.allocation+"%"} bg="#E6F1FB" color="#185FA5" border="#B5D4F4"/><Badge label={a.billable?"Billable":"Non-Bill"} bg={a.billable?"#D4EDDA":"#E2E3E5"} color={a.billable?"#155724":"#41464B"}/></div>
+                  </div>;})}
+                </Card>
+              </div>
+              <Card>
+                <h3 style={{margin:"0 0 10px",fontSize:"13px",fontWeight:"500",color:"var(--color-text-primary)"}}>Change history</h3>
+                {empHist.length===0?<p style={{fontSize:"13px",color:"var(--color-text-secondary)"}}>No changes recorded.</p>:<div style={{display:"flex",flexDirection:"column",gap:"12px"}}>
+                  {empHist.map((entry,i)=><div key={i} style={{borderLeft:"2px solid var(--color-border-secondary)",paddingLeft:"10px"}}>
+                    <p style={{margin:"0 0 3px",fontSize:"11px",color:"var(--color-text-secondary)"}}>{new Date(entry.timestamp).toLocaleString()}</p>
+                    {entry.changes.map((c,j)=><p key={j} style={{margin:"0 0 2px",fontSize:"12px",color:"var(--color-text-primary)"}}><strong>{c.field}</strong>: <span style={{color:"#721C24"}}>{c.from||"\u2014"}</span> {"\u2192"} <span style={{color:"#155724"}}>{c.to||"\u2014"}</span></p>)}
+                  </div>)}
+                </div>}
+              </Card>
+            </div>
+          </div>;
+        })()}
+
+        {/* PROJECTS */}
+        {view==="projects"&&<div>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"1.25rem"}}>
+            <h2 style={{margin:0,fontSize:"18px",fontWeight:"500",color:"var(--color-text-primary)"}}>Projects</h2>
+            {perms.canManageProjects&&<button onClick={()=>setModal({type:"addProj"})} style={{padding:"8px 18px",borderRadius:"8px",background:"#0A2240",color:"white",border:"none",cursor:"pointer",fontSize:"13px",fontWeight:"500"}}>+ New Project</button>}
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:"1rem"}}>
+            {projects.map(proj=>{const lead=employees.find(e=>e.entId===proj.deliveryLead);const cnt=assignments.filter(a=>a.projectId===proj.id).length;return<Card key={proj.id} style={{display:"flex",flexDirection:"column",gap:"10px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                <div style={{flex:1}}>
+                  <p style={{margin:"0 0 3px",fontWeight:"500",fontSize:"14px",color:"var(--color-text-primary)"}}>{proj.name}</p>
+                  <p style={{margin:0,fontSize:"12px",color:"var(--color-text-secondary)"}}>{proj.description}</p>
+                </div>
+                <div style={{display:"flex",gap:"5px",flexShrink:0,marginLeft:"10px"}}>
+                  <Badge label={proj.status} bg={proj.status==="Active"?"#D4EDDA":"#E2E3E5"} color={proj.status==="Active"?"#155724":"#41464B"}/>
+                  {proj.isInvestment&&<Badge label="Investment" bg="#FFF3CD" color="#856404" border="#FFECB5"/>}
+                </div>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px",fontSize:"12px"}}>
+                <div><span style={{color:"var(--color-text-secondary)"}}>Lead: </span><span style={{fontWeight:"500",color:"var(--color-text-primary)"}}>{lead?lead.firstName+" "+lead.lastName:"\u2014"}</span></div>
+                <div><span style={{color:"var(--color-text-secondary)"}}>Team: </span><span style={{fontWeight:"500",color:"var(--color-text-primary)"}}>{cnt} assigned</span></div>
+                <div><span style={{color:"var(--color-text-secondary)"}}>Start: </span><span style={{color:"var(--color-text-primary)"}}>{fmtDate(proj.startDate)}</span></div>
+                <div><span style={{color:"var(--color-text-secondary)"}}>End: </span><span style={{color:"var(--color-text-primary)"}}>{fmtDate(proj.endDate)}</span></div>
+              </div>
+              {perms.canManageProjects&&<div style={{display:"flex",gap:"6px",borderTop:"0.5px solid var(--color-border-tertiary)",paddingTop:"8px"}}>
+                <button onClick={()=>setModal({type:"editProj",data:proj})} style={SB}>Edit</button>
+                <button onClick={()=>setModal({type:"confirm",data:{msg:'Delete project "'+proj.name+'"?',onConfirm:()=>delProj(proj.id)}})} style={{...SB,color:"#721C24",borderColor:"#F5C6CB"}}>Delete</button>
+              </div>}
+            </Card>;})}
+          </div>
+        </div>}
+
+        {/* ASSIGNMENTS */}
+        {view==="assignments"&&<div>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"1.25rem"}}>
+            <h2 style={{margin:0,fontSize:"18px",fontWeight:"500",color:"var(--color-text-primary)"}}>Assignments</h2>
+            {perms.canManageAssign&&<button onClick={()=>setModal({type:"addAssign"})} style={{padding:"8px 18px",borderRadius:"8px",background:"#0A2240",color:"white",border:"none",cursor:"pointer",fontSize:"13px",fontWeight:"500"}}>+ New Assignment</button>}
+          </div>
+          <Card style={{padding:0,overflow:"hidden"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:"13px"}}>
+              <thead><tr style={{borderBottom:"0.5px solid var(--color-border-tertiary)",background:"var(--color-background-secondary)"}}>
+                {["Employee","Project","Role","Allocation","Dates","Billing","Actions"].map(h=><th key={h} style={{padding:"10px 14px",textAlign:"left",fontWeight:"500",color:"var(--color-text-secondary)",fontSize:"12px"}}>{h}</th>)}
+              </tr></thead>
+              <tbody>
+                {assignments.length===0&&<tr><td colSpan={7} style={{padding:"2.5rem",textAlign:"center",color:"var(--color-text-secondary)"}}>No assignments yet.</td></tr>}
+                {assignments.map((a,i)=>{const emp=employees.find(e=>e.id===a.employeeId);const proj=projects.find(p=>p.id===a.projectId);return(
+                  <tr key={a.id} style={{borderBottom:i<assignments.length-1?"0.5px solid var(--color-border-tertiary)":"none"}} onMouseEnter={e=>e.currentTarget.style.background="var(--color-background-secondary)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                    <td style={{padding:"12px 14px"}}>
+                      <div style={{display:"flex",alignItems:"center",gap:"8px"}}>
+                        <div style={{width:"26px",height:"26px",borderRadius:"50%",background:"#0A2240",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"9px",fontWeight:"500",color:"white",flexShrink:0}}>{emp?initials(emp.firstName,emp.lastName):"?"}</div>
+                        <span style={{fontWeight:"500",color:"var(--color-text-primary)"}}>{emp?emp.firstName+" "+emp.lastName:"\u2014"}</span>
+                      </div>
+                    </td>
+                    <td style={{padding:"12px 14px",color:"var(--color-text-primary)"}}>{proj?proj.name:"\u2014"}</td>
+                    <td style={{padding:"12px 14px",color:"var(--color-text-secondary)",fontSize:"12px"}}>{a.role}</td>
+                    <td style={{padding:"12px 14px"}}>
+                      <div style={{display:"flex",alignItems:"center",gap:"8px"}}>
+                        <div style={{width:"55px",height:"5px",borderRadius:"3px",background:"var(--color-background-secondary)",overflow:"hidden"}}><div style={{width:a.allocation+"%",height:"100%",background:a.allocation>80?"#E24B4A":a.allocation>50?"#EF9F27":"#1D9E75",borderRadius:"3px"}}/></div>
+                        <span style={{fontSize:"12px",fontWeight:"500",color:"var(--color-text-primary)"}}>{a.allocation}%</span>
+                      </div>
+                    </td>
+                    <td style={{padding:"12px 14px",fontSize:"12px",color:"var(--color-text-secondary)"}}>{a.startDate} {"\u2192"} {a.endDate}</td>
+                    <td style={{padding:"12px 14px"}}><Badge label={a.billable?"Billable":"Non-Billable"} bg={a.billable?"#D4EDDA":"#E2E3E5"} color={a.billable?"#155724":"#41464B"}/></td>
+                    <td style={{padding:"12px 14px"}}>
+                      {perms.canManageAssign&&<div style={{display:"flex",gap:"5px"}}>
+                        <button onClick={()=>setModal({type:"editAssign",data:a})} style={SB}>Edit</button>
+                        <button onClick={()=>setModal({type:"confirm",data:{msg:"Remove this assignment?",onConfirm:()=>delAssign(a.id)}})} style={{...SB,color:"#721C24",borderColor:"#F5C6CB"}}>Delete</button>
+                      </div>}
+                    </td>
+                  </tr>
+                );})}
+              </tbody>
+            </table>
+          </Card>
+        </div>}
+
+        {/* TIMESHEETS */}
+        {view==="timesheets"&&(()=>{
+          const ts=getTS(tsEmp.id,tsWeek);
+          const weekDates=getWeekDays(tsWeek);
+          const dayTotals=days.map(d=>ts.lines.reduce((s,l)=>s+(l.hours[d]||0),0));
+          const locked=tsWeek<=LOCK_DATE;
+          function prevW(){const d=new Date(tsWeek);d.setDate(d.getDate()-7);setTsWeek(d.toISOString().slice(0,10));}
+          function nextW(){const d=new Date(tsWeek);d.setDate(d.getDate()+7);setTsWeek(d.toISOString().slice(0,10));}
+          function updateH(li,d,val){
+            const di=days.indexOf(d);
+            if(!canEditTs(tsEmp.id,tsWeek,di)){toast_("Edit restricted \u2014 locked date or insufficient permissions.","error");return;}
+            if(tsEmp.status==="Rolled Off"){toast_("Cannot enter time for a Rolled Off employee.","error");return;}
+            const h=parseFloat(val)||0;
+            if(h<0||h>24){toast_("Hours must be 0\u201324.","error");return;}
+            const updated={...ts,lines:ts.lines.map((l,i)=>i===li?{...l,hours:{...l.hours,[d]:h}}:l)};
+            saveTS(tsEmp.id,tsWeek,updated);
+          }
+          return<div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"1.25rem"}}>
+              <h2 style={{margin:0,fontSize:"18px",fontWeight:"500",color:"var(--color-text-primary)"}}>Timesheets</h2>
+              <div style={{display:"flex",gap:"8px",alignItems:"center"}}>
+                {perms.canEditOthersTime&&<select value={tsEmp.id} onChange={e=>setTsEmpId(parseInt(e.target.value))} style={SS}>{employees.map(e=><option key={e.id} value={e.id}>{e.firstName} {e.lastName}</option>)}</select>}
+                <button onClick={prevW} style={SB}>{"\u2039 Prev"}</button>
+                <span style={{fontSize:"13px",fontWeight:"500",color:"var(--color-text-primary)",whiteSpace:"nowrap"}}>Week of {tsWeek}</span>
+                <button onClick={nextW} style={SB}>{"Next \u203a"}</button>
+              </div>
+            </div>
+            {locked&&currentUser.appRole!=="Admin"&&<div style={{background:"#FFF3CD",border:"1px solid #FFECB5",borderRadius:"8px",padding:"10px 14px",marginBottom:"1rem",fontSize:"13px",color:"#856404"}}>This week is before the system lock date ({LOCK_DATE}). {currentUser.appRole==="PMO"?"You cannot edit locked timesheets.":"Contact an Admin to make changes."}</div>}
+            {tsEmp.status==="Rolled Off"&&<div style={{background:"#F8D7DA",border:"1px solid #F5C6CB",borderRadius:"8px",padding:"10px 14px",marginBottom:"1rem",fontSize:"13px",color:"#721C24"}}>This employee is Rolled Off. Time entry is not permitted.</div>}
+            <Card style={{padding:0,overflow:"hidden",marginBottom:"1rem"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:"13px"}}>
+                <thead><tr style={{borderBottom:"0.5px solid var(--color-border-tertiary)",background:"var(--color-background-secondary)"}}>
+                  <th style={{padding:"10px 14px",textAlign:"left",fontWeight:"500",color:"var(--color-text-secondary)",fontSize:"12px",width:"200px"}}>Activity</th>
+                  {days.map((d,i)=><th key={d} style={{padding:"10px 12px",textAlign:"center",fontWeight:"500",color:"var(--color-text-secondary)",fontSize:"12px"}}><div>{d}</div><div style={{fontSize:"11px",fontWeight:"400",color:"var(--color-text-tertiary)"}}>{weekDates[i]?weekDates[i].slice(5):""}</div></th>)}
+                  <th style={{padding:"10px 14px",textAlign:"center",fontWeight:"500",color:"var(--color-text-secondary)",fontSize:"12px"}}>Total</th>
+                </tr></thead>
+                <tbody>
+                  {ts.lines.map((line,li)=>{
+                    const rowTotal=days.reduce((s,d)=>s+(line.hours[d]||0),0);
+                    const isFixed=line.type==="fixed";
+                    return<tr key={li} style={{borderBottom:"0.5px solid var(--color-border-tertiary)",background:isFixed?"var(--color-background-secondary)":"transparent"}}>
+                      <td style={{padding:"10px 14px"}}><p style={{margin:0,fontWeight:"500",fontSize:"13px",color:"var(--color-text-primary)"}}>{line.label}</p><p style={{margin:0,fontSize:"11px",color:"var(--color-text-secondary)"}}>{isFixed?"Fixed":"Project"}</p></td>
+                      {days.map((d,di)=>{const editable=canEditTs(tsEmp.id,tsWeek,di)&&tsEmp.status!=="Rolled Off"&&!ts.submitted;return<td key={d} style={{padding:"6px 8px",textAlign:"center"}}>
+                        <input type="number" min="0" max="24" step="0.5" value={line.hours[d]||0} onChange={e=>updateH(li,d,e.target.value)} disabled={!editable}
+                          style={{width:"50px",padding:"4px 5px",borderRadius:"6px",border:editable?"0.5px solid var(--color-border-secondary)":"0.5px solid transparent",background:editable?"var(--color-background-primary)":"transparent",fontSize:"13px",textAlign:"center",color:"var(--color-text-primary)"}}/>
+                      </td>;})}
+                      <td style={{padding:"10px 14px",textAlign:"center",fontWeight:"500",fontSize:"13px",color:rowTotal>0?"var(--color-text-primary)":"var(--color-text-tertiary)"}}>{rowTotal}</td>
+                    </tr>;
+                  })}
+                </tbody>
+                <tfoot><tr style={{borderTop:"1px solid var(--color-border-secondary)",background:"var(--color-background-secondary)"}}>
+                  <td style={{padding:"10px 14px",fontWeight:"500",fontSize:"13px",color:"var(--color-text-primary)"}}>Daily Total</td>
+                  {dayTotals.map((t,i)=><td key={i} style={{padding:"10px 12px",textAlign:"center",fontWeight:"500",fontSize:"13px",color:t>8?"#721C24":t>0?"#155724":"var(--color-text-tertiary)"}}>{t}</td>)}
+                  <td style={{padding:"10px 14px",textAlign:"center",fontWeight:"500",fontSize:"13px",color:"var(--color-text-primary)"}}>{dayTotals.reduce((a,b)=>a+b,0)}</td>
+                </tr></tfoot>
+              </table>
+            </Card>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+              <span style={{fontSize:"12px",color:"var(--color-text-secondary)"}}>Status: <strong>{ts.submitted?"Submitted":"Draft"}</strong></span>
+              {!ts.submitted&&tsEmp.status!=="Rolled Off"&&(!locked||currentUser.appRole==="Admin")&&<button onClick={()=>{saveTS(tsEmp.id,tsWeek,{...ts,submitted:true});toast_("Timesheet submitted.");}} style={{padding:"8px 20px",borderRadius:"8px",background:"#0A2240",color:"white",border:"none",cursor:"pointer",fontSize:"13px",fontWeight:"500"}}>Submit Timesheet</button>}
+            </div>
+          </div>;
+        })()}
+
+        {/* REPORTS */}
+        {view==="reports"&&perms.canViewReports&&<div>
+          <h2 style={{margin:"0 0 1.25rem",fontSize:"18px",fontWeight:"500",color:"var(--color-text-primary)"}}>Reports</h2>
+          <div style={{display:"flex",gap:"8px",marginBottom:"1.5rem",flexWrap:"wrap"}}>
+            {[{id:"allocation",l:"Resource Allocation"},{id:"billing",l:"Billing Summary"},{id:"engagement",l:"Engagement Status"},{id:"project",l:"Project Staffing"}].map(r=>(
+              <button key={r.id} onClick={()=>setRptTab(r.id)} style={{padding:"8px 16px",borderRadius:"8px",border:rptTab===r.id?"0.5px solid #B5D4F4":"0.5px solid var(--color-border-secondary)",background:rptTab===r.id?"#E6F1FB":"transparent",color:rptTab===r.id?"#185FA5":"var(--color-text-secondary)",cursor:"pointer",fontSize:"13px",fontWeight:rptTab===r.id?"500":"400"}}>{r.l}</button>
+            ))}
+          </div>
+          {rptTab==="allocation"&&<Card style={{padding:0,overflow:"hidden"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:"13px"}}>
+              <thead><tr style={{borderBottom:"0.5px solid var(--color-border-tertiary)",background:"var(--color-background-secondary)"}}>
+                {["Employee","Ent ID","Assignments","Total Allocation","Availability","Status"].map(h=><th key={h} style={{padding:"10px 14px",textAlign:"left",fontWeight:"500",color:"var(--color-text-secondary)",fontSize:"12px"}}>{h}</th>)}
+              </tr></thead>
+              <tbody>{employees.map((emp,i)=>{const empA=assignments.filter(a=>a.employeeId===emp.id);const total=empA.reduce((s,a)=>s+a.allocation,0);const avail=Math.max(0,100-total);const sc=STATUS_COLORS[emp.status]||{};return(
+                <tr key={emp.id} style={{borderBottom:i<employees.length-1?"0.5px solid var(--color-border-tertiary)":"none"}}>
+                  <td style={{padding:"12px 14px",fontWeight:"500",color:"var(--color-text-primary)"}}>{emp.firstName} {emp.lastName}</td>
+                  <td style={{padding:"12px 14px",fontFamily:"var(--font-mono)",fontSize:"12px",color:"var(--color-text-secondary)"}}>{emp.entId}</td>
+                  <td style={{padding:"12px 14px",color:"var(--color-text-secondary)"}}>{empA.length}</td>
+                  <td style={{padding:"12px 14px"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:"8px"}}>
+                      <div style={{width:"70px",height:"5px",borderRadius:"3px",background:"var(--color-background-secondary)",overflow:"hidden"}}><div style={{width:Math.min(total,100)+"%",height:"100%",background:total>100?"#E24B4A":total>80?"#EF9F27":"#1D9E75",borderRadius:"3px"}}/></div>
+                      <span style={{fontSize:"12px",fontWeight:"500",color:total>100?"#721C24":total>80?"#856404":"var(--color-text-primary)"}}>{total}%</span>
+                    </div>
+                  </td>
+                  <td style={{padding:"12px 14px",color:avail===0?"#721C24":avail<30?"#856404":"#155724",fontSize:"12px",fontWeight:"500"}}>{avail}% free</td>
+                  <td style={{padding:"12px 14px"}}><Badge label={emp.status} bg={sc.bg} color={sc.text} border={sc.border}/></td>
+                </tr>
+              );})}
+              </tbody>
+            </table>
+          </Card>}
+          {rptTab==="billing"&&<div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:"1rem"}}>
+            <div style={{display:"flex",flexDirection:"column",gap:"1rem"}}>
+              {[{l:"Billable headcount",v:employees.filter(e=>e.billingStatus==="Billable").length,c:"#155724"},{l:"Non-billable headcount",v:employees.filter(e=>e.billingStatus!=="Billable").length,c:"#41464B"},{l:"Billable rate",v:(employees.length?Math.round(employees.filter(e=>e.billingStatus==="Billable").length/employees.length*100):0)+"%",c:"#185FA5"}].map(s=>(
+                <div key={s.l} style={{background:"var(--color-background-primary)",border:"0.5px solid var(--color-border-tertiary)",borderRadius:"10px",padding:"1rem 1.25rem"}}>
+                  <p style={{fontSize:"12px",color:"var(--color-text-secondary)",margin:"0 0 6px"}}>{s.l}</p>
+                  <p style={{fontSize:"28px",fontWeight:"500",margin:0,color:s.c}}>{s.v}</p>
+                </div>
+              ))}
+            </div>
+            <Card>
+              <h3 style={{margin:"0 0 1rem",fontSize:"13px",fontWeight:"500",color:"var(--color-text-primary)"}}>By department</h3>
+              {DEPARTMENTS.map(d=>{const b=employees.filter(e=>e.department===d&&e.billingStatus==="Billable").length;const nb=employees.filter(e=>e.department===d&&e.billingStatus!=="Billable").length;if(b+nb===0)return null;return<div key={d} style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:"10px"}}>
+                <span style={{width:"100px",fontSize:"12px",color:"var(--color-text-secondary)",flexShrink:0}}>{d}</span>
+                <div style={{flex:1,height:"12px",borderRadius:"3px",overflow:"hidden",background:"var(--color-background-secondary)",display:"flex"}}>
+                  <div style={{width:(b+nb)?b/(b+nb)*100+"%":"0%",background:"#1D9E75",height:"100%"}}/>
+                  <div style={{flex:1,background:"#D3D1C7",height:"100%"}}/>
+                </div>
+                <span style={{fontSize:"12px",color:"var(--color-text-secondary)",width:"60px",textAlign:"right",flexShrink:0}}>{b}B / {nb}NB</span>
+              </div>;})}
+            </Card>
+          </div>}
+          {rptTab==="engagement"&&<div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"12px"}}>
+            {ENGAGEMENT_STATES.map(s=>{const sc=STATUS_COLORS[s]||{};const n=employees.filter(e=>e.status===s).length;return<div key={s} style={{background:sc.bg||"var(--color-background-secondary)",border:"1px solid "+(sc.border||"var(--color-border-tertiary)"),borderRadius:"10px",padding:"1rem"}}>
+              <p style={{margin:"0 0 4px",fontSize:"11px",color:sc.text||"var(--color-text-secondary)"}}>{s}</p>
+              <p style={{margin:0,fontSize:"28px",fontWeight:"500",color:sc.text||"var(--color-text-primary)"}}>{n}</p>
+            </div>;})}
+          </div>}
+          {rptTab==="project"&&<div style={{display:"flex",flexDirection:"column",gap:"1rem"}}>
+            {projects.map(proj=>{const pAssigns=assignments.filter(a=>a.projectId===proj.id);const empList=pAssigns.map(a=>({...a,emp:employees.find(e=>e.id===a.employeeId)})).filter(a=>a.emp);const lead=employees.find(e=>e.entId===proj.deliveryLead);return<Card key={proj.id}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"10px"}}>
+                <div><p style={{margin:"0 0 2px",fontWeight:"500",fontSize:"14px",color:"var(--color-text-primary)"}}>{proj.name}</p><p style={{margin:0,fontSize:"12px",color:"var(--color-text-secondary)"}}>Lead: {lead?lead.firstName+" "+lead.lastName:"\u2014"} {"\u00b7"} {fmtDate(proj.startDate)} {"\u2013"} {fmtDate(proj.endDate)}</p></div>
+                <div style={{display:"flex",gap:"5px"}}><Badge label={proj.status} bg={proj.status==="Active"?"#D4EDDA":"#E2E3E5"} color={proj.status==="Active"?"#155724":"#41464B"}/>{proj.isInvestment&&<Badge label="Investment" bg="#FFF3CD" color="#856404" border="#FFECB5"/>}</div>
+              </div>
+              {empList.length===0?<p style={{fontSize:"13px",color:"var(--color-text-secondary)",margin:0}}>No assignments.</p>:<div style={{display:"flex",flexWrap:"wrap",gap:"8px"}}>{empList.map(function(item){return<div key={item.emp.id} style={{display:"flex",alignItems:"center",gap:"8px",padding:"6px 10px",borderRadius:"8px",border:"0.5px solid var(--color-border-tertiary)",background:"var(--color-background-secondary)"}}>
+                <div style={{width:"24px",height:"24px",borderRadius:"50%",background:"#0A2240",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"9px",fontWeight:"500",color:"white"}}>{initials(item.emp.firstName,item.emp.lastName)}</div>
+                <div><p style={{margin:0,fontSize:"12px",fontWeight:"500",color:"var(--color-text-primary)"}}>{item.emp.firstName} {item.emp.lastName}</p><p style={{margin:0,fontSize:"11px",color:"var(--color-text-secondary)"}}>{item.role} {"\u00b7"} {item.allocation}% {"\u00b7"} {item.billable?"Bill":"Non-Bill"}</p></div>
+              </div>;})}</div>}
+            </Card>;})}
+          </div>}
+        </div>}
+
+        {/* HISTORY */}
+        {view==="history"&&<div>
+          <h2 style={{margin:"0 0 1.25rem",fontSize:"18px",fontWeight:"500",color:"var(--color-text-primary)"}}>Change History</h2>
+          <Card style={{padding:0,overflow:"hidden"}}>
+            {history.length===0?<div style={{padding:"3rem",textAlign:"center",color:"var(--color-text-secondary)"}}>No changes recorded yet. Edit an employee or update a status to see history here.</div>:
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:"13px"}}>
+                <thead><tr style={{borderBottom:"0.5px solid var(--color-border-tertiary)",background:"var(--color-background-secondary)"}}>
+                  {["Employee","Ent ID","Field","Before","After","When"].map(h=><th key={h} style={{padding:"10px 14px",textAlign:"left",fontWeight:"500",color:"var(--color-text-secondary)",fontSize:"12px"}}>{h}</th>)}
+                </tr></thead>
+                <tbody>{history.flatMap((entry,i)=>entry.changes.map((c,j)=>(
+                  <tr key={i+"-"+j} style={{borderBottom:"0.5px solid var(--color-border-tertiary)"}}>
+                    <td style={{padding:"11px 14px",fontWeight:"500",color:"var(--color-text-primary)"}}>{entry.name}</td>
+                    <td style={{padding:"11px 14px",fontFamily:"var(--font-mono)",fontSize:"12px",color:"var(--color-text-secondary)"}}>{entry.entId}</td>
+                    <td style={{padding:"11px 14px",color:"var(--color-text-primary)"}}>{c.field}</td>
+                    <td style={{padding:"11px 14px",color:"#721C24"}}>{c.from||"\u2014"}</td>
+                    <td style={{padding:"11px 14px",color:"#155724"}}>{c.to||"\u2014"}</td>
+                    <td style={{padding:"11px 14px",color:"var(--color-text-secondary)",fontSize:"12px"}}>{new Date(entry.timestamp).toLocaleString()}</td>
+                  </tr>
+                )))}</tbody>
+              </table>
+            }
+          </Card>
+        </div>}
+
+        {/* ACCESS CONTROL */}
+        {view==="access"&&perms.canManageRoles&&<div>
+          <h2 style={{margin:"0 0 1.25rem",fontSize:"18px",fontWeight:"500",color:"var(--color-text-primary)"}}>Access Control</h2>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 320px",gap:"1.5rem"}}>
+            <Card style={{padding:0,overflow:"hidden"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:"13px"}}>
+                <thead><tr style={{borderBottom:"0.5px solid var(--color-border-tertiary)",background:"var(--color-background-secondary)"}}>
+                  {["Employee","Ent ID","Current Role","Change Role",""].map(h=><th key={h} style={{padding:"10px 14px",textAlign:"left",fontWeight:"500",color:"var(--color-text-secondary)",fontSize:"12px"}}>{h}</th>)}
+                </tr></thead>
+                <tbody>{employees.map((emp,i)=>{const rc={User:{bg:"#E2E3E5",c:"#41464B"},"Project Lead":{bg:"#D4EDDA",c:"#155724"},PMO:{bg:"#CCE5FF",c:"#004085"},Admin:{bg:"#FFF3CD",c:"#856404"}}[emp.appRole]||{};return(
+                  <tr key={emp.id} style={{borderBottom:i<employees.length-1?"0.5px solid var(--color-border-tertiary)":"none"}}>
+                    <td style={{padding:"12px 14px"}}>
+                      <div style={{display:"flex",alignItems:"center",gap:"8px"}}>
+                        <div style={{width:"28px",height:"28px",borderRadius:"50%",background:"#0A2240",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"10px",fontWeight:"500",color:"white"}}>{initials(emp.firstName,emp.lastName)}</div>
+                        <span style={{fontWeight:"500",color:"var(--color-text-primary)"}}>{emp.firstName} {emp.lastName}</span>
+                      </div>
+                    </td>
+                    <td style={{padding:"12px 14px",fontFamily:"var(--font-mono)",fontSize:"12px",color:"var(--color-text-secondary)"}}>{emp.entId}</td>
+                    <td style={{padding:"12px 14px"}}><Badge label={emp.appRole} bg={rc.bg} color={rc.c} border={rc.bg}/></td>
+                    <td style={{padding:"12px 14px"}}><select value={emp.appRole} onChange={e=>{setEmployees(es=>es.map(x=>x.id===emp.id?{...x,appRole:e.target.value}:x));toast_("Role updated.");}} style={{...SS,padding:"5px 8px"}}>{APP_ROLES.map(r=><option key={r}>{r}</option>)}</select></td>
+                    <td style={{padding:"12px 14px"}}><button onClick={()=>setModal({type:"confirm",data:{msg:'Delete employee "'+emp.firstName+' '+emp.lastName+'"?',onConfirm:()=>delEmp(emp.id)}})} style={{padding:"4px 10px",borderRadius:"6px",border:"1px solid #F5C6CB",background:"#F8D7DA",color:"#721C24",cursor:"pointer",fontSize:"11px",fontWeight:"500"}}>Delete</button></td>
+                  </tr>
+                );})}
+                </tbody>
+              </table>
+            </Card>
+            <div style={{display:"flex",flexDirection:"column",gap:"10px"}}>
+              {[{r:"User",p:["Enter and edit own timesheets"]},{r:"Project Lead",p:["Manage projects & assignments","View reports","Manage engagements","Edit own timesheets"]},{r:"PMO",p:["Edit engagement details","Update others timesheets","All Project Lead permissions"]},{r:"Admin",p:["All PMO permissions","Edit locked timesheets","Manage roles & access"]}].map(function(item){const rc={User:{bg:"#E2E3E5",c:"#41464B"},"Project Lead":{bg:"#D4EDDA",c:"#155724"},PMO:{bg:"#CCE5FF",c:"#004085"},Admin:{bg:"#FFF3CD",c:"#856404"}}[item.r]||{};return<Card key={item.r} style={{padding:"1rem"}}>
+                <div style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"8px"}}><Badge label={item.r} bg={rc.bg} color={rc.c} border={rc.bg}/></div>
+                {item.p.map(perm=><div key={perm} style={{display:"flex",alignItems:"center",gap:"6px",marginBottom:"4px"}}><div style={{width:"4px",height:"4px",borderRadius:"50%",background:"#1D9E75",flexShrink:0}}/><span style={{fontSize:"12px",color:"var(--color-text-secondary)"}}>{perm}</span></div>)}
+              </Card>;})}
+            </div>
+          </div>
+        </div>}
+
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+</script>
+</body>
+</html>
