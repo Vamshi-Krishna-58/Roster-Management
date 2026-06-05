@@ -1,4 +1,4 @@
-# CoxRosterManagemnet
+# RosterManagemnet
 
 A Node.js + TypeScript Express app for authenticated employee roster management with a built-in frontend and optional DynamoDB persistence.
 
